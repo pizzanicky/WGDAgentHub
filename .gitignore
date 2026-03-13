@@ -1,0 +1,23 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Sensitive Data
+WGDAgentHub/config/settings.json
+WGDAgentHub/data/output/
+WGDAgentHub/data/input/
+*.md
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
