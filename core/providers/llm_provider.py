@@ -20,8 +20,9 @@ class LLMProvider:
             "stream": False
         }
         try:
-            response = requests.post(self.url, headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
+            response = requests.post(self.url, headers=headers, json=payload, timeout=300)
+            if response.status_code != 200:
+                return None, f"API Error {response.status_code}: {response.text}"
             return response.json()['choices'][0]['message']['content'], None
         except Exception as e:
             return None, str(e)
