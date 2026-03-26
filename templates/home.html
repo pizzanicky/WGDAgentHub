@@ -41,12 +41,15 @@
                 <section class="panel {% if active_tab == 'estimate' %}is-active{% endif %}" id="estimate">
                     <h2>工时预估</h2>
                     <p>可以直接粘贴需求，也可以上传 Markdown 文件。两者都填时，以文本框内容为准。</p>
-                    <form method="post" action="/run/estimate" enctype="multipart/form-data">
+                    <form method="post" action="/run/estimate" enctype="multipart/form-data" data-estimate-form>
                         <label for="story_text">需求内容</label>
                         <textarea id="story_text" name="story_text" rows="10" placeholder="把用户故事、需求说明或 PRD 片段贴在这里">{{ form_data.get('story_text', '') }}</textarea>
                         <label for="story_file">或上传 Markdown 文件</label>
                         <input id="story_file" name="story_file" type="file" accept=".md,.txt">
-                        <button type="submit">开始预估</button>
+                        <div class="submit-row">
+                            <button type="submit" data-submit-button data-loading-text="正在预估，请稍候...">开始预估</button>
+                            <div class="form-feedback" data-feedback aria-live="polite"></div>
+                        </div>
                     </form>
                 </section>
 
@@ -129,6 +132,7 @@
     <script>
         const buttons = document.querySelectorAll("[data-target]");
         const panels = document.querySelectorAll(".panel");
+        const estimateForm = document.querySelector("[data-estimate-form]");
 
         buttons.forEach((button) => {
             button.addEventListener("click", () => {
@@ -137,6 +141,36 @@
                 panels.forEach((panel) => panel.classList.toggle("is-active", panel.id === target));
             });
         });
+
+        if (estimateForm) {
+            estimateForm.addEventListener("submit", (event) => {
+                if (estimateForm.dataset.submitting === "true") {
+                    event.preventDefault();
+                    return;
+                }
+
+                estimateForm.dataset.submitting = "true";
+
+                const submitButton = estimateForm.querySelector("[data-submit-button]");
+                const feedback = estimateForm.querySelector("[data-feedback]");
+                const fields = estimateForm.querySelectorAll("textarea, input, button");
+
+                fields.forEach((field) => {
+                    field.disabled = true;
+                });
+
+                if (submitButton) {
+                    submitButton.dataset.originalText = submitButton.textContent;
+                    submitButton.textContent = submitButton.dataset.loadingText || "处理中...";
+                    submitButton.classList.add("is-loading");
+                }
+
+                if (feedback) {
+                    feedback.textContent = "系统正在生成工时预估，请不要重复点击或关闭页面。";
+                    feedback.classList.add("is-visible");
+                }
+            });
+        }
     </script>
 </body>
 </html>

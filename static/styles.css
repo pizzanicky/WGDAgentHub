@@ -175,6 +175,48 @@ button[type="submit"] {
     cursor: pointer;
 }
 
+button[type="submit"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+}
+
+button.is-loading {
+    position: relative;
+    padding-left: 46px;
+}
+
+button.is-loading::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 18px;
+    width: 16px;
+    height: 16px;
+    margin-top: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.42);
+    border-top-color: #fff;
+    animation: spin 0.75s linear infinite;
+}
+
+.submit-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.form-feedback {
+    display: none;
+    color: var(--accent-deep);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.form-feedback.is-visible {
+    display: block;
+}
+
 .skill-list {
     display: grid;
     gap: 10px;
@@ -383,6 +425,16 @@ button[type="submit"] {
 .logs summary {
     cursor: pointer;
     color: var(--muted);
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @media (max-width: 860px) {
