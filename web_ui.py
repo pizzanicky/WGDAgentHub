@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 from datetime import datetime
 
 import frontmatter
+import markdown
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, send_file
 from werkzeug.utils import secure_filename
@@ -70,6 +71,23 @@ def _save_upload(file_storage):
     return saved_path
 
 
+def _save_markdown_output(prefix, content):
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{prefix}_{timestamp}.md"
+    path = os.path.join(OUTPUT_DIR, filename)
+    with open(path, "w", encoding="utf-8") as file:
+        file.write(content)
+    return filename
+
+
+def _render_markdown(content):
+    return markdown.markdown(
+        content,
+        extensions=["fenced_code", "tables", "nl2br", "sane_lists"],
+    )
+
+
 def _jira_fetch(project_key):
     if not project_key:
         return {
@@ -78,7 +96,9 @@ def _jira_fetch(project_key):
             "message": "请先填写项目 Key。",
             "logs": "",
             "content": "",
+            "rendered_content": "",
             "download_name": None,
+            "download_label": "",
             "render_mode": "text",
         }
 
@@ -90,7 +110,9 @@ def _jira_fetch(project_key):
             "message": f"缺少环境变量: {', '.join(missing)}",
             "logs": "",
             "content": "",
+            "rendered_content": "",
             "download_name": None,
+            "download_label": "",
             "render_mode": "text",
         }
 
@@ -113,7 +135,9 @@ def _jira_fetch(project_key):
         "message": result,
         "logs": logs,
         "content": content,
+        "rendered_content": "",
         "download_name": download_name,
+        "download_label": "下载输出文件",
         "render_mode": "text",
     }
 
@@ -126,7 +150,9 @@ def _estimate(story_text, story_file):
             "message": "请填写需求内容，或上传一个 Markdown 文件。",
             "logs": "",
             "content": "",
+            "rendered_content": "",
             "download_name": None,
+            "download_label": "",
             "render_mode": "text",
         }
 
@@ -137,7 +163,9 @@ def _estimate(story_text, story_file):
             "message": "缺少环境变量: DEEPSEEK_API_KEY",
             "logs": "",
             "content": "",
+            "rendered_content": "",
             "download_name": None,
+            "download_label": "",
             "render_mode": "text",
         }
 
@@ -149,15 +177,24 @@ def _estimate(story_text, story_file):
     provider = LLMProvider(os.getenv("DEEPSEEK_API_KEY"), os.getenv("DEEPSEEK_MODEL"))
     agent = WorkEstimator(provider)
     result, logs = _capture_output(agent.estimate, content, HISTORY_DIR)
+    markdown_result = result if isinstance(result, str) else ""
+    download_name = None
+    rendered_content = ""
+
+    if not _is_error(markdown_result) and markdown_result:
+        download_name = _save_markdown_output("estimate", markdown_result)
+        rendered_content = _render_markdown(markdown_result)
 
     return {
-        "success": not _is_error(result),
+        "success": not _is_error(markdown_result),
         "title": "工时预估",
-        "message": "预估已完成" if not _is_error(result) else result,
+        "message": "预估已完成" if not _is_error(markdown_result) else markdown_result,
         "logs": logs,
-        "content": result if isinstance(result, str) else "",
-        "download_name": None,
-        "render_mode": "text",
+        "content": markdown_result,
+        "rendered_content": rendered_content,
+        "download_name": download_name,
+        "download_label": "下载 Markdown",
+        "render_mode": "markdown" if rendered_content else "text",
     }
 
 
@@ -169,7 +206,9 @@ def _data_analyze(data_file, skill_name, to_email):
             "message": "请上传一个 Excel 或 CSV 文件。",
             "logs": "",
             "content": "",
+            "rendered_content": "",
             "download_name": None,
+            "download_label": "",
             "render_mode": "text",
         }
 
@@ -180,7 +219,9 @@ def _data_analyze(data_file, skill_name, to_email):
             "message": "请先选择分析模板。",
             "logs": "",
             "content": "",
+            "rendered_content": "",
             "download_name": None,
+            "download_label": "",
             "render_mode": "text",
         }
 
@@ -191,7 +232,9 @@ def _data_analyze(data_file, skill_name, to_email):
             "message": "缺少环境变量: DEEPSEEK_API_KEY",
             "logs": "",
             "content": "",
+            "rendered_content": "",
             "download_name": None,
+            "download_label": "",
             "render_mode": "text",
         }
 
@@ -213,7 +256,9 @@ def _data_analyze(data_file, skill_name, to_email):
         "message": "分析已完成" if not _is_error(result) else result,
         "logs": logs,
         "content": result if isinstance(result, str) else "",
+        "rendered_content": result if isinstance(result, str) and result.lstrip().startswith("<") else "",
         "download_name": None,
+        "download_label": "",
         "render_mode": "html" if isinstance(result, str) and result.lstrip().startswith("<") else "text",
     }
 

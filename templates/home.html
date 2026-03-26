@@ -98,13 +98,19 @@
 
             {% if result.download_name %}
             <p class="download-row">
-                <a href="{{ url_for('download_output', filename=result.download_name) }}">下载输出文件</a>
+                <a href="{{ url_for('download_output', filename=result.download_name) }}">{{ result.download_label or '下载输出文件' }}</a>
             </p>
             {% endif %}
 
             {% if result.content %}
-                {% if result.render_mode == 'html' %}
-                <div class="html-preview">{{ result.content | safe }}</div>
+                {% if result.render_mode == 'html' or result.render_mode == 'markdown' %}
+                <div class="html-preview markdown-preview">{{ result.rendered_content | safe }}</div>
+                {% if result.render_mode == 'markdown' %}
+                <details class="logs raw-markdown">
+                    <summary>查看原始 Markdown</summary>
+                    <pre>{{ result.content }}</pre>
+                </details>
+                {% endif %}
                 {% else %}
                 <pre class="output">{{ result.content }}</pre>
                 {% endif %}
