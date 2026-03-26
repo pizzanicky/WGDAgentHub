@@ -1,6 +1,5 @@
 import os
 import argparse
-import sys
 from dotenv import load_dotenv
 
 # 导入我们的 Provider
@@ -13,7 +12,6 @@ from core.providers.email_provider import EmailProvider
 from agents.project_management.workhour_fetcher import WorkhourFetcher
 from agents.dev_assistant.work_estimator import WorkEstimator
 from agents.automation.data_analyst import DataAnalystAgent
-
 # 加载 .env 中的环境变量
 load_dotenv()
 
@@ -49,6 +47,11 @@ def main():
     create_parser = subparsers.add_parser("create-agent", help="[脚手架] 生成新 Agent 模板")
     create_parser.add_argument("--name", required=True, help="Agent 名称")
     create_parser.add_argument("--category", default="dev_assistant", help="分类目录")
+
+    # 命令 5: web
+    web_parser = subparsers.add_parser("web", help="启动本地网页界面")
+    web_parser.add_argument("--host", default=os.getenv("WEB_HOST", "127.0.0.1"), help="监听地址")
+    web_parser.add_argument("--port", type=int, default=int(os.getenv("WEB_PORT") or 7860), help="监听端口")
 
     args = parser.parse_args()
 
@@ -95,6 +98,12 @@ def main():
         with open(target_file, 'w', encoding='utf-8') as f:
             f.write(template)
         print(f"\n[OK] 已生成新 Agent 模板: {target_file}")
+
+    elif args.command == "web":
+        from web_ui import create_app
+        app = create_app()
+        print(f"\n[OK] 网页界面已启动: http://{args.host}:{args.port}")
+        app.run(host=args.host, port=args.port, debug=False)
 
     else:
         parser.print_help()
