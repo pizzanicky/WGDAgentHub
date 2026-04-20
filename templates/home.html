@@ -15,19 +15,77 @@
                 <p class="intro">不需要记命令。直接在页面里填内容、上传文件、查看结果。</p>
             </div>
             <div class="hero-note">
-                <span>支持 3 个场景</span>
-                <strong>Jira 工时抓取 / 工时预估 / 数据分析</strong>
+                <span>支持 4 个场景</span>
+                <strong>工作日报 / Jira 工时抓取 / 工时预估 / 数据分析</strong>
             </div>
         </section>
 
         <section class="tabs" data-tabs>
             <div class="tab-buttons">
+                <button type="button" class="tab-button {% if active_tab == 'daily-report' %}is-active{% endif %}" data-target="daily-report">工作日报助手</button>
                 <button type="button" class="tab-button {% if active_tab == 'jira-fetch' %}is-active{% endif %}" data-target="jira-fetch">Jira 工时抓取</button>
                 <button type="button" class="tab-button {% if active_tab == 'estimate' %}is-active{% endif %}" data-target="estimate">工时预估</button>
                 <button type="button" class="tab-button {% if active_tab == 'data-analyze' %}is-active{% endif %}" data-target="data-analyze">数据分析</button>
             </div>
 
             <div class="panel-grid">
+                <section class="panel {% if active_tab == 'daily-report' %}is-active{% endif %}" id="daily-report">
+                    <h2>工作日报助手</h2>
+                    <p>输入今天的要点，系统会参考最近日报写法，自动生成可直接修改发送的正式初稿。</p>
+                    <form method="post" action="/run/daily-report" data-loading-form>
+                        <label for="date">日报日期</label>
+                        <input id="date" name="date" type="date" value="{{ form_data.get('date', '') }}" required>
+
+                        <label for="subject">主题标题（可选）</label>
+                        <input id="subject" name="subject" type="text" placeholder="不填则系统自动概括" value="{{ form_data.get('subject', '') }}">
+
+                        <label for="work_items">今天做的事项</label>
+                        <textarea id="work_items" name="work_items" rows="8" placeholder="建议按要点填写，例如：&#10;1. 完成某需求分析&#10;2. 复盘某项运营数据&#10;3. 验证某个 AI 应用场景" required>{{ form_data.get('work_items', '') }}</textarea>
+
+                        <label for="metrics">关键数据 / 事实 / 结论</label>
+                        <textarea id="metrics" name="metrics" rows="5" placeholder="把能支撑判断的数据、样本量、结论写在这里">{{ form_data.get('metrics', '') }}</textarea>
+
+                        <label for="tech_thoughts">新技术思考 / 应用</label>
+                        <textarea id="tech_thoughts" name="tech_thoughts" rows="5" placeholder="例如 AI、自动化、数据分析方法、产品化思路">{{ form_data.get('tech_thoughts', '') }}</textarea>
+
+                        <label for="issues">问题 / 风险 / 挑战</label>
+                        <textarea id="issues" name="issues" rows="4" placeholder="当前卡点、风险、待协调事项">{{ form_data.get('issues', '') }}</textarea>
+
+                        <label for="next_steps">明日计划 / 下一步</label>
+                        <textarea id="next_steps" name="next_steps" rows="4" placeholder="下一步准备怎么推进">{{ form_data.get('next_steps', '') }}</textarea>
+
+                        <label for="extra_requirements">额外要求（可选）</label>
+                        <textarea id="extra_requirements" name="extra_requirements" rows="3" placeholder="例如：希望语气更简洁，或突出运营数据价值">{{ form_data.get('extra_requirements', '') }}</textarea>
+
+                        <div class="inline-grid">
+                            <div>
+                                <label for="history_dir">历史日报目录</label>
+                                <input id="history_dir" name="history_dir" type="text" value="{{ form_data.get('history_dir', '') }}">
+                            </div>
+                            <div>
+                                <label for="output_dir">输出目录</label>
+                                <input id="output_dir" name="output_dir" type="text" value="{{ form_data.get('output_dir', '') }}">
+                            </div>
+                        </div>
+
+                        <div class="inline-grid">
+                            <div>
+                                <label for="template_path">模板文件</label>
+                                <input id="template_path" name="template_path" type="text" value="{{ form_data.get('template_path', '') }}">
+                            </div>
+                            <div>
+                                <label for="reference_limit">参考历史篇数</label>
+                                <input id="reference_limit" name="reference_limit" type="number" min="1" max="10" value="{{ form_data.get('reference_limit', 5) }}">
+                            </div>
+                        </div>
+
+                        <div class="submit-row">
+                            <button type="submit" data-submit-button data-loading-text="正在生成日报，请稍候...">生成日报初稿</button>
+                            <div class="form-feedback" data-feedback aria-live="polite"></div>
+                        </div>
+                    </form>
+                </section>
+
                 <section class="panel {% if active_tab == 'jira-fetch' %}is-active{% endif %}" id="jira-fetch">
                     <h2>Jira 工时抓取</h2>
                     <p>输入项目 Key，自动整理 Story 和任务预估，输出 Markdown 报告。</p>
@@ -132,7 +190,7 @@
     <script>
         const buttons = document.querySelectorAll("[data-target]");
         const panels = document.querySelectorAll(".panel");
-        const estimateForm = document.querySelector("[data-estimate-form]");
+        const loadingForms = document.querySelectorAll("[data-loading-form], [data-estimate-form]");
 
         buttons.forEach((button) => {
             button.addEventListener("click", () => {
@@ -142,18 +200,18 @@
             });
         });
 
-        if (estimateForm) {
-            estimateForm.addEventListener("submit", (event) => {
-                if (estimateForm.dataset.submitting === "true") {
+        loadingForms.forEach((form) => {
+            form.addEventListener("submit", (event) => {
+                if (form.dataset.submitting === "true") {
                     event.preventDefault();
                     return;
                 }
 
-                estimateForm.dataset.submitting = "true";
+                form.dataset.submitting = "true";
 
-                const submitButton = estimateForm.querySelector("[data-submit-button]");
-                const feedback = estimateForm.querySelector("[data-feedback]");
-                const fields = estimateForm.querySelectorAll("textarea, input, button");
+                const submitButton = form.querySelector("[data-submit-button]");
+                const feedback = form.querySelector("[data-feedback]");
+                const fields = form.querySelectorAll("textarea, input, select, button");
 
                 fields.forEach((field) => {
                     field.disabled = true;
@@ -166,11 +224,13 @@
                 }
 
                 if (feedback) {
-                    feedback.textContent = "系统正在生成工时预估，请不要重复点击或关闭页面。";
+                    feedback.textContent = submitButton?.dataset.loadingText?.includes("日报")
+                        ? "系统正在参考历史日报生成正式初稿，请不要重复点击或关闭页面。"
+                        : "系统正在生成工时预估，请不要重复点击或关闭页面。";
                     feedback.classList.add("is-visible");
                 }
             });
-        }
+        });
     </script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 from contextlib import redirect_stdout
 from datetime import datetime
 
@@ -10,6 +11,7 @@ from flask import Flask, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 from agents.automation.data_analyst import DataAnalystAgent
+from agents.automation.daily_report_writer import DailyReportWriter
 from agents.dev_assistant.work_estimator import WorkEstimator
 from agents.project_management.workhour_fetcher import WorkhourFetcher
 from core.providers.data_provider import DataProvider
@@ -24,6 +26,11 @@ SKILL_DIR = os.path.join(ROOT_DIR, "agents", "automation", "skills")
 UPLOAD_DIR = os.path.join(ROOT_DIR, "data", "uploads")
 OUTPUT_DIR = os.path.join(ROOT_DIR, os.getenv("OUTPUT_DIR") or "data/output")
 HISTORY_DIR = os.path.join(ROOT_DIR, os.getenv("HISTORY_DIR") or "data/output")
+DEFAULT_REPORT_HISTORY_DIR = os.path.expanduser(os.getenv("REPORT_HISTORY_DIR") or "~/OneDrive/Work/工作日报")
+DEFAULT_REPORT_OUTPUT_DIR = os.path.expanduser(os.getenv("REPORT_DRAFT_DIR") or "~/OneDrive/Work/工作日报/草稿")
+DEFAULT_REPORT_TEMPLATE_PATH = os.path.expanduser(
+    os.getenv("REPORT_TEMPLATE_PATH") or "~/OneDrive/Work/工作日报/草稿/工作日报-张丕哲-模板.md"
+)
 
 
 def _capture_output(func, *args, **kwargs):
@@ -86,6 +93,18 @@ def _render_markdown(content):
         content,
         extensions=["fenced_code", "tables", "nl2br", "sane_lists"],
     )
+
+
+def _copy_to_output_dir(file_path):
+    if not file_path or not os.path.exists(file_path):
+        return None
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    filename = os.path.basename(file_path)
+    target_path = os.path.join(OUTPUT_DIR, filename)
+    if os.path.abspath(file_path) == os.path.abspath(target_path):
+        return filename
+    shutil.copy2(file_path, target_path)
+    return filename
 
 
 def _jira_fetch(project_key):
@@ -263,6 +282,92 @@ def _data_analyze(data_file, skill_name, to_email):
     }
 
 
+def _daily_report(form_data):
+    if not (form_data.get("work_items") or "").strip():
+        return {
+            "success": False,
+            "title": "工作日报助手",
+            "message": "请至少填写今天做的事项。",
+            "logs": "",
+            "content": "",
+            "rendered_content": "",
+            "download_name": None,
+            "download_label": "",
+            "render_mode": "text",
+        }
+
+    llm_provider = None
+    if os.getenv("DEEPSEEK_API_KEY"):
+        llm_provider = LLMProvider(os.getenv("DEEPSEEK_API_KEY"), os.getenv("DEEPSEEK_MODEL"))
+
+    agent = DailyReportWriter(llm_provider)
+    result, logs = _capture_output(
+        agent.run,
+        {
+            "date": form_data.get("date"),
+            "subject": form_data.get("subject"),
+            "work_items": form_data.get("work_items"),
+            "metrics": form_data.get("metrics"),
+            "tech_thoughts": form_data.get("tech_thoughts"),
+            "issues": form_data.get("issues"),
+            "next_steps": form_data.get("next_steps"),
+            "extra_requirements": form_data.get("extra_requirements"),
+            "history_dir": form_data.get("history_dir") or DEFAULT_REPORT_HISTORY_DIR,
+            "output_dir": form_data.get("output_dir") or DEFAULT_REPORT_OUTPUT_DIR,
+            "template_path": form_data.get("template_path") or DEFAULT_REPORT_TEMPLATE_PATH,
+            "reference_limit": form_data.get("reference_limit") or 5,
+        },
+    )
+
+    if not isinstance(result, dict):
+        return {
+            "success": False,
+            "title": "工作日报助手",
+            "message": "生成失败，请检查输入。",
+            "logs": logs,
+            "content": "",
+            "rendered_content": "",
+            "download_name": None,
+            "download_label": "",
+            "render_mode": "text",
+        }
+
+    markdown_name = _copy_to_output_dir(result.get("markdown_path"))
+    docx_name = _copy_to_output_dir(result.get("docx_path"))
+    ref_lines = [os.path.basename(item["path"]) for item in result.get("references", [])]
+    log_lines = []
+    if logs:
+        log_lines.append(logs)
+    if ref_lines:
+        log_lines.append("参考历史日报：\n" + "\n".join(ref_lines))
+    if result.get("markdown_path"):
+        log_lines.append(f"Markdown 已保存到：{result['markdown_path']}")
+    if result.get("docx_path"):
+        log_lines.append(f"DOCX 已保存到：{result['docx_path']}")
+    elif result.get("docx_error"):
+        log_lines.append(f"DOCX 导出失败：{result['docx_error']}")
+    if markdown_name:
+        log_lines.append(f"工作区副本：{os.path.join(OUTPUT_DIR, markdown_name)}")
+    if docx_name:
+        log_lines.append(f"工作区副本：{os.path.join(OUTPUT_DIR, docx_name)}")
+
+    message = "日报初稿已生成"
+    if not result.get("used_llm"):
+        message += "（当前未检测到 LLM Key，已使用本地模板兜底）"
+
+    return {
+        "success": True,
+        "title": "工作日报助手",
+        "message": message,
+        "logs": "\n\n".join(log_lines),
+        "content": result.get("content", ""),
+        "rendered_content": _render_markdown(result.get("content", "")),
+        "download_name": docx_name or markdown_name,
+        "download_label": "下载 DOCX" if docx_name else "下载 Markdown",
+        "render_mode": "markdown" if result.get("content") else "text",
+    }
+
+
 def create_app():
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
@@ -274,7 +379,13 @@ def create_app():
             skills=_list_skills(),
             active_tab="jira-fetch",
             result=None,
-            form_data={},
+            form_data={
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "history_dir": DEFAULT_REPORT_HISTORY_DIR,
+                "output_dir": DEFAULT_REPORT_OUTPUT_DIR,
+                "template_path": DEFAULT_REPORT_TEMPLATE_PATH,
+                "reference_limit": 5,
+            },
         )
 
     @app.post("/run/jira-fetch")
@@ -314,6 +425,31 @@ def create_app():
             active_tab="data-analyze",
             result=result,
             form_data={"skill_name": skill_name, "to_email": to_email},
+        )
+
+    @app.post("/run/daily-report")
+    def run_daily_report():
+        form_data = {
+            "date": (request.form.get("date") or "").strip() or datetime.now().strftime("%Y-%m-%d"),
+            "subject": (request.form.get("subject") or "").strip(),
+            "work_items": request.form.get("work_items") or "",
+            "metrics": request.form.get("metrics") or "",
+            "tech_thoughts": request.form.get("tech_thoughts") or "",
+            "issues": request.form.get("issues") or "",
+            "next_steps": request.form.get("next_steps") or "",
+            "extra_requirements": request.form.get("extra_requirements") or "",
+            "history_dir": (request.form.get("history_dir") or "").strip() or DEFAULT_REPORT_HISTORY_DIR,
+            "output_dir": (request.form.get("output_dir") or "").strip() or DEFAULT_REPORT_OUTPUT_DIR,
+            "template_path": (request.form.get("template_path") or "").strip() or DEFAULT_REPORT_TEMPLATE_PATH,
+            "reference_limit": (request.form.get("reference_limit") or "").strip() or "5",
+        }
+        result = _daily_report(form_data)
+        return render_template(
+            "home.html",
+            skills=_list_skills(),
+            active_tab="daily-report",
+            result=result,
+            form_data=form_data,
         )
 
     @app.get("/download/<path:filename>")

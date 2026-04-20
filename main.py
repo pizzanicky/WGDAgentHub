@@ -12,6 +12,7 @@ from core.providers.email_provider import EmailProvider
 from agents.project_management.workhour_fetcher import WorkhourFetcher
 from agents.dev_assistant.work_estimator import WorkEstimator
 from agents.automation.data_analyst import DataAnalystAgent
+from agents.automation.daily_report_writer import DailyReportWriter
 # 加载 .env 中的环境变量
 load_dotenv()
 
@@ -48,7 +49,22 @@ def main():
     create_parser.add_argument("--name", required=True, help="Agent 名称")
     create_parser.add_argument("--category", default="dev_assistant", help="分类目录")
 
-    # 命令 5: web
+    # 命令 5: daily-report
+    report_parser = subparsers.add_parser("daily-report", help="生成工作日报初稿")
+    report_parser.add_argument("--date", help="日报日期，格式 YYYY-MM-DD，默认今天")
+    report_parser.add_argument("--subject", help="日报主题标题，可选")
+    report_parser.add_argument("--work-items", required=True, help="今天做的事项，可直接粘贴多行内容")
+    report_parser.add_argument("--metrics", help="关键数据、事实或结论")
+    report_parser.add_argument("--tech-thoughts", help="新技术思考或应用")
+    report_parser.add_argument("--issues", help="问题、风险或挑战")
+    report_parser.add_argument("--next-steps", help="明日计划或下一步动作")
+    report_parser.add_argument("--extra-requirements", help="额外要求")
+    report_parser.add_argument("--history-dir", default=os.getenv("REPORT_HISTORY_DIR") or os.path.expanduser("~/OneDrive/Work/工作日报"), help="历史日报目录")
+    report_parser.add_argument("--output-dir", default=os.getenv("REPORT_DRAFT_DIR") or os.path.expanduser("~/OneDrive/Work/工作日报/草稿"), help="日报输出目录")
+    report_parser.add_argument("--template-path", default=os.getenv("REPORT_TEMPLATE_PATH") or os.path.expanduser("~/OneDrive/Work/工作日报/草稿/工作日报-张丕哲-模板.md"), help="日报模板路径")
+    report_parser.add_argument("--reference-limit", type=int, default=5, help="参考历史日报数量")
+
+    # 命令 6: web
     web_parser = subparsers.add_parser("web", help="启动本地网页界面")
     web_parser.add_argument("--host", default=os.getenv("WEB_HOST", "127.0.0.1"), help="监听地址")
     web_parser.add_argument("--port", type=int, default=int(os.getenv("WEB_PORT") or 7860), help="监听端口")
@@ -89,6 +105,38 @@ def main():
         result = agent.run(args.file, args.skill, args.to)
         print("\n" + "="*50 + "\n分析完成，报告如下：\n" + "="*50 + "\n")
         print(result)
+
+    elif args.command == "daily-report":
+        llm_prov = None
+        if os.getenv("DEEPSEEK_API_KEY"):
+            llm_prov = LLMProvider(os.getenv("DEEPSEEK_API_KEY"), os.getenv("DEEPSEEK_MODEL"))
+
+        agent = DailyReportWriter(llm_prov)
+        result = agent.run(
+            {
+                "date": args.date,
+                "subject": args.subject,
+                "work_items": args.work_items,
+                "metrics": args.metrics,
+                "tech_thoughts": args.tech_thoughts,
+                "issues": args.issues,
+                "next_steps": args.next_steps,
+                "extra_requirements": args.extra_requirements,
+                "history_dir": args.history_dir,
+                "output_dir": args.output_dir,
+                "template_path": args.template_path,
+                "reference_limit": args.reference_limit,
+            }
+        )
+        print("\n" + "="*50)
+        print("日报初稿已生成")
+        print("="*50)
+        print(result["content"])
+        print("\nMarkdown:", result["markdown_path"])
+        if result["docx_path"]:
+            print("DOCX:", result["docx_path"])
+        elif result["docx_error"]:
+            print("DOCX 导出失败:", result["docx_error"])
 
     elif args.command == "create-agent":
         target_dir = os.path.join(ROOT_DIR, "agents", args.category)

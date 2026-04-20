@@ -140,6 +140,12 @@ form {
     gap: 14px;
 }
 
+.inline-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
 label {
     font-weight: 600;
 }
@@ -256,6 +262,21 @@ button.is-loading::before {
 
 .result-card.is-error {
     border-color: rgba(182, 58, 43, 0.26);
+}
+
+@media (max-width: 720px) {
+    .hero {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .hero-note {
+        min-width: 0;
+    }
+
+    .inline-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .result-header {
