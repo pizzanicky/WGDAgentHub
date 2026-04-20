@@ -229,6 +229,113 @@ button.is-loading::before {
     margin-top: -4px;
 }
 
+.topic-board {
+    margin-top: 14px;
+    padding: 20px;
+    border-radius: 20px;
+    background: #f7f1e8;
+    border: 1px solid #e6d9c5;
+}
+
+.topic-board-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: start;
+    margin-bottom: 16px;
+}
+
+.topic-board-header h3 {
+    margin: 0;
+}
+
+.topic-board-tip {
+    max-width: 360px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.topic-list {
+    display: grid;
+    gap: 12px;
+}
+
+.topic-card {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 12px;
+    align-items: start;
+    padding: 16px;
+    border-radius: 18px;
+    border: 1px solid #ddd0bd;
+    background: #fffdf8;
+    cursor: pointer;
+}
+
+.topic-card input[type="radio"] {
+    margin-top: 4px;
+}
+
+.topic-card-body strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 17px;
+}
+
+.topic-card-body p {
+    margin: 0 0 8px;
+    color: #42505f;
+    line-height: 1.6;
+}
+
+.topic-card-body p span {
+    color: var(--accent-deep);
+    font-weight: 600;
+}
+
+.topic-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.topic-lane,
+.topic-priority {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.topic-priority {
+    background: #efe5d6;
+    color: #7b5431;
+}
+
+.topic-lane-today {
+    background: #e7f1ec;
+    color: #266344;
+}
+
+.topic-lane-history {
+    background: #efe7f7;
+    color: #6c4e8a;
+}
+
+.topic-lane-external {
+    background: #e7eef7;
+    color: #365a83;
+}
+
+.topic-lane-hybrid {
+    background: #f7ebdf;
+    color: #96531f;
+}
+
 .skill-item {
     padding: 12px 14px;
     border-radius: 14px;
@@ -275,6 +382,18 @@ button.is-loading::before {
     }
 
     .inline-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .topic-board-header {
+        flex-direction: column;
+    }
+
+    .topic-board-tip {
+        max-width: none;
+    }
+
+    .topic-card {
         grid-template-columns: 1fr;
     }
 }

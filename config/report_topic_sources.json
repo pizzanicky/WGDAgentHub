@@ -1,0 +1,27 @@
+{
+  "sources": [
+    {
+      "name": "商务部新闻发布",
+      "url": "https://www.mofcom.gov.cn/xwfb/index.html",
+      "category": "consumption_macro",
+      "parse_mode": "html_title_list",
+      "keywords": ["消费", "电子商务", "零售", "市场", "数字", "智能"],
+      "limit": 3,
+      "enabled": true
+    },
+    {
+      "name": "国家统计局消费数据",
+      "url": "https://www.stats.gov.cn/sj/zxfb/202604/t20260416_1963325.html",
+      "category": "consumption_macro",
+      "parse_mode": "article",
+      "enabled": true
+    },
+    {
+      "name": "OpenAI Model Release Notes",
+      "url": "https://help.openai.com/en/articles/9624314-model-release-notes",
+      "category": "ai_product_updates",
+      "parse_mode": "article",
+      "enabled": true
+    }
+  ]
+}
