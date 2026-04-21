@@ -13,7 +13,7 @@ __pycache__/
 
 # Sensitive Data
 WGDAgentHub/config/settings.json
-WGDAgentHub/data/output/
+/data/output/
 WGDAgentHub/data/input/
 *.md
 

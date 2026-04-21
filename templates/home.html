@@ -31,7 +31,7 @@
             <div class="panel-grid">
                 <section class="panel {% if active_tab == 'daily-report' %}is-active{% endif %}" id="daily-report">
                     <h2>工作日报助手</h2>
-                    <p>输入今天的要点，系统会参考最近日报写法，自动生成可直接修改发送的正式初稿。</p>
+                    <p>先给你 5 个候选题，再根据你确认的题目生成正式日报初稿。</p>
                     <form method="post" action="/run/daily-report" data-loading-form>
                         <label for="date">日报日期</label>
                         <input id="date" name="date" type="date" value="{{ form_data.get('date', '') }}" required>
@@ -40,7 +40,7 @@
                         <input id="subject" name="subject" type="text" placeholder="不填则系统自动概括" value="{{ form_data.get('subject', '') }}">
 
                         <label for="work_items">今天做的事项</label>
-                        <textarea id="work_items" name="work_items" rows="8" placeholder="建议按要点填写，例如：&#10;1. 完成某需求分析&#10;2. 复盘某项运营数据&#10;3. 验证某个 AI 应用场景" required>{{ form_data.get('work_items', '') }}</textarea>
+                        <textarea id="work_items" name="work_items" rows="8" placeholder="建议按要点填写，例如：&#10;1. 完成某需求分析&#10;2. 复盘某项运营数据&#10;3. 验证某个 AI 应用场景">{{ form_data.get('work_items', '') }}</textarea>
 
                         <label for="metrics">关键数据 / 事实 / 结论</label>
                         <textarea id="metrics" name="metrics" rows="5" placeholder="把能支撑判断的数据、样本量、结论写在这里">{{ form_data.get('metrics', '') }}</textarea>
@@ -79,10 +79,61 @@
                             </div>
                         </div>
 
+                        <div class="inline-grid">
+                            <div>
+                                <label for="novelty_window">去重范围（最近几篇）</label>
+                                <input id="novelty_window" name="novelty_window" type="number" min="1" max="20" value="{{ form_data.get('novelty_window', 10) }}">
+                            </div>
+                            <div>
+                                <label for="count">候选题数量</label>
+                                <input id="count" name="count" type="number" min="3" max="8" value="{{ form_data.get('count', 5) }}">
+                            </div>
+                        </div>
+
+                        <label for="source_config">外部来源配置文件</label>
+                        <input id="source_config" name="source_config" type="text" value="{{ form_data.get('source_config', '') }}">
+
+                        <input type="hidden" name="topic_suggestions_payload" value="{{ form_data.get('topic_suggestions_payload', '') }}">
+                        <input type="hidden" name="selected_topic_context" value="{{ form_data.get('selected_topic_context', '') }}">
+
                         <div class="submit-row">
-                            <button type="submit" data-submit-button data-loading-text="正在生成日报，请稍候...">生成日报初稿</button>
+                            <button type="submit" name="report_action" value="suggest_topics" data-submit-button data-loading-text="正在生成候选题，请稍候...">生成选题建议</button>
+                            {% if form_data.get('topic_suggestions') %}
+                            <button type="submit" name="report_action" value="generate_report" data-submit-button data-loading-text="正在生成日报初稿，请稍候...">基于已选题目生成日报</button>
+                            {% endif %}
                             <div class="form-feedback" data-feedback aria-live="polite"></div>
                         </div>
+
+                        {% if form_data.get('topic_suggestions') %}
+                        <section class="topic-board">
+                            <div class="topic-board-header">
+                                <div>
+                                    <p class="eyebrow">候选题</p>
+                                    <h3>请先选一个题目</h3>
+                                </div>
+                                <p class="topic-board-tip">系统会同时给出当天工作、历史延展、外部信息和混合题。</p>
+                            </div>
+
+                            <div class="topic-list">
+                                {% for topic in form_data.get('topic_suggestions', []) %}
+                                <label class="topic-card">
+                                    <input type="radio" name="selected_topic_id" value="{{ topic.id }}" data-topic-radio {% if form_data.get('selected_topic_id') == topic.id %}checked{% endif %}>
+                                    <div class="topic-card-body">
+                                        <div class="topic-meta">
+                                            <span class="topic-lane topic-lane-{{ topic.lane }}">{{ topic.lane_label }}</span>
+                                            <span class="topic-priority">优先级 {{ topic.priority }}</span>
+                                        </div>
+                                        <strong>{{ topic.title }}</strong>
+                                        <p><span>推荐理由：</span>{{ topic.why_this_topic }}</p>
+                                        <p><span>来源摘要：</span>{{ topic.source_summary }}</p>
+                                        <p><span>与今天工作的关联：</span>{{ topic.today_linkage }}</p>
+                                        <p><span>重复提醒：</span>{{ topic.novelty_note }}</p>
+                                    </div>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </section>
+                        {% endif %}
                     </form>
                 </section>
 
@@ -202,6 +253,20 @@
 
         loadingForms.forEach((form) => {
             form.addEventListener("submit", (event) => {
+                const submitter = event.submitter;
+                const submitValue = submitter?.value || "";
+                const feedback = form.querySelector("[data-feedback]");
+                const selectedTopic = form.querySelector("[data-topic-radio]:checked");
+
+                if (submitValue === "generate_report" && !selectedTopic) {
+                    event.preventDefault();
+                    if (feedback) {
+                        feedback.textContent = "请先选一个候选题，再生成日报。";
+                        feedback.classList.add("is-visible");
+                    }
+                    return;
+                }
+
                 if (form.dataset.submitting === "true") {
                     event.preventDefault();
                     return;
@@ -209,8 +274,7 @@
 
                 form.dataset.submitting = "true";
 
-                const submitButton = form.querySelector("[data-submit-button]");
-                const feedback = form.querySelector("[data-feedback]");
+                const submitButton = submitter || form.querySelector("[data-submit-button]");
                 const fields = form.querySelectorAll("textarea, input, select, button");
 
                 fields.forEach((field) => {
@@ -224,9 +288,11 @@
                 }
 
                 if (feedback) {
-                    feedback.textContent = submitButton?.dataset.loadingText?.includes("日报")
-                        ? "系统正在参考历史日报生成正式初稿，请不要重复点击或关闭页面。"
-                        : "系统正在生成工时预估，请不要重复点击或关闭页面。";
+                    feedback.textContent = submitButton?.dataset.loadingText?.includes("候选题")
+                        ? "系统正在结合当天输入、历史日报和外部信息生成候选题，请不要重复点击或关闭页面。"
+                        : submitButton?.dataset.loadingText?.includes("日报")
+                            ? "系统正在根据已选题目生成正式初稿，请不要重复点击或关闭页面。"
+                            : "系统正在生成工时预估，请不要重复点击或关闭页面。";
                     feedback.classList.add("is-visible");
                 }
             });
